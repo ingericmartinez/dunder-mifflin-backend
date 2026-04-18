@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dunder Mifflin API</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"; margin: 2rem; }
+    a { color: #0b5ed7; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    ul { margin: 0.25rem 0 0.5rem 1rem; }
+    code { background: #f3f4f6; padding: 0.1rem 0.25rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Dunder Mifflin API</h1>
+  <p>This REST API manages catalogs and inventory for the Dunder Mifflin Paper Company.</p>
+
+  <div class="card">
+    <strong>How to access</strong>
+    <ul>
+      <li>Base URL: <code>http://localhost:8080/api/v1</code></li>
+      <li>Authentication: HTTP Basic</li>
+      <li>Test users:
+        <ul>
+          <li><code>user</code> / <code>user123</code> (ROLE_USER)</li>
+          <li><code>admin</code> / <code>admin123</code> (ROLE_ADMIN)</li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <strong>What can the API do?</strong>
+    <ul>
+      <li>List catalogs: <a href="/api/v1/catalogs">GET /api/v1/catalogs</a> (USER, ADMIN) — alias: <a href="/api/v1/dundermifflin/catalogos">/api/v1/dundermifflin/catalogos</a></li>
+      <li>Add product to a catalog: <code>POST /api/v1/catalogs/{catalogId}/products</code> (ADMIN)</li>
+      <li>List inventory: <a href="/api/v1/inventory">GET /api/v1/inventory</a> (USER, ADMIN) — alias: <a href="/api/v1/dundermifflin/inventario">/api/v1/dundermifflin/inventario</a>
+        <ul>
+          <li>Filter by branch: <code>/api/v1/inventory?branchId=b1</code></li>
+          <li>Pagination: <code>?page=1&size=20</code> (max size=100)</li>
+        </ul>
+      </li>
+      <li>Update inventory quantity: <code>PATCH /api/v1/inventory/{productId}?branchId={branchId}</code> (ADMIN)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <strong>Swagger UI</strong>
+    <div><a href="/swagger-ui/index.html">/swagger-ui/index.html</a></div>
+    <div>Static spec: <a href="/openapi/df.yaml">/openapi/df.yaml</a></div>
+  </div>
+
+  <div class="card">
+    <strong>API Root</strong>
+    <div><a href="/api/v1">/api/v1</a></div>
+  </div>
+</body>
+</html>

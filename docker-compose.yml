@@ -1,0 +1,36 @@
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: dundermifflin
+      MYSQL_USER: dunder
+      MYSQL_PASSWORD: mifflin
+    volumes:
+      - mysql_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "dunder", "--password=mifflin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: jdbc:mysql://db:3306/dundermifflin?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USER: dunder
+      DATABASE_PASSWORD: mifflin
+      DATABASE_DRIVER: com.mysql.cj.jdbc.Driver
+      SECURITY_USER_PASSWORD: user123
+      SECURITY_ADMIN_PASSWORD: admin123
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

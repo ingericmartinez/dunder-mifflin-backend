@@ -1,0 +1,650 @@
+openapi: 3.0.0
+info:
+  title: Dunder Mifflin API
+  description: |-
+    API for managing inventory, catalogs, purchase orders, and customers for the Dunder Mifflin Paper Company.
+    "The people person's paper people."
+
+    **Rate Limits:** This API is limited to 1000 requests per hour per API key.
+    **Idempotency:** POST operations support idempotency via the `Idempotency-Key` header.
+  version: "1.0.0"
+  contact:
+    name: Dunder Mifflin IT Department
+    email: it@dundermifflin.com
+    url: https://www.dundermifflin.com
+  termsOfService: https://www.dundermifflin.com/terms/api
+
+servers:
+  - url: https://api.dundermifflin.com/v1
+    description: Production Server
+
+# Security requirement applied globally to all endpoints
+security:
+  - ApiKeyAuth: []
+
+tags:
+  - name: Inventory
+    description: 📦 Operations related to paper inventory.
+  - name: Catalogs
+    description: 📖 Management of product catalogs.
+  - name: Purchase Orders
+    description: 🛒 Creating and tracking purchase orders.
+  - name: Customers
+    description: 👥 Management of customer information.
+  - name: Branches
+    description: 🏢 Operations related to Dunder Mifflin branches.
+
+paths:
+  /inventory:
+    get:
+      tags:
+        - Inventory
+      summary: List inventory
+      description: Retrieves a paginated list of all paper products in inventory and their available quantity, filterable by branch.
+      operationId: getInventory
+      parameters:
+        - $ref: '#/components/parameters/limitParam'
+        - $ref: '#/components/parameters/offsetParam'
+        - in: query
+          name: branchId
+          schema:
+            type: string
+            format: uuid
+          description: Filter inventory items by branch ID.
+      responses:
+        '200':
+          description: Inventory successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryList'
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /inventory/{productId}:
+    patch:
+      tags:
+        - Inventory
+      summary: Update inventory stock
+      description: Updates the quantity in stock for a specific product at a specific branch. Authorized for warehouse managers only.
+      operationId: updateInventory
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the product to update.
+        - in: query
+          name: branchId
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the branch where the stock is being updated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantityInStock
+              properties:
+                quantityInStock:
+                  type: integer
+                  description: The new quantity of boxes in stock.
+                  minimum: 0
+      responses:
+        '200':
+          description: Inventory successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryItem'
+        '400':
+          $ref: '#/components/responses/400Error'
+        '403':
+          $ref: '#/components/responses/403Error'
+        '404':
+          $ref: '#/components/responses/404Error'
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /catalogs:
+    get:
+      tags:
+        - Catalogs
+      summary: Get all catalogs
+      description: Returns a paginated list of all available product catalogs.
+      operationId: getCatalogs
+      parameters:
+        - $ref: '#/components/parameters/limitParam'
+        - $ref: '#/components/parameters/offsetParam'
+      responses:
+        '200':
+          description: Catalogs successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogList'
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /catalogs/{catalogId}/products:
+    post:
+      tags:
+        - Catalogs
+      summary: Add a new product to a catalog
+      description: Adds a new paper product to an existing catalog.
+      operationId: addProductToCatalog
+      parameters:
+        - name: catalogId
+          in: path
+          required: true
+          description: ID of the catalog to which the product will be added.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        description: Data for the new product to be created.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewProduct'
+      responses:
+        '201':
+          description: Product successfully added.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the newly created product.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaperProduct'
+        '400':
+          $ref: '#/components/responses/400Error'
+        '404':
+          $ref: '#/components/responses/404Error'
+        '409':
+          description: Conflict. A product with this name already exists in the catalog.
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /orders:
+    post:
+      tags:
+        - Purchase Orders
+      summary: Create a new purchase order
+      description: Creates a new purchase order for one or more paper products. All paper is sold by the box of 5000 units. Include an `Idempotency-Key` header to prevent duplicate orders.
+      operationId: createOrder
+      requestBody:
+        description: Data for the new purchase order.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewOrder'
+      responses:
+        '201':
+          description: Purchase order successfully created.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the newly created order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/400Error'
+        '402':
+          description: Payment Required.
+        '409':
+          description: Conflict. An order with the provided idempotency key already exists.
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /orders/{orderId}:
+    get:
+      tags:
+        - Purchase Orders
+      summary: Get purchase order details
+      description: Retrieves the details of a specific purchase order using its ID.
+      operationId: getOrderById
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: ID of the purchase order to retrieve.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Purchase order details successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/404Error'
+        '500':
+          $ref: '#/components/responses/500Error'
+    patch:
+      tags:
+        - Purchase Orders
+      summary: Update an order's status
+      description: Updates the status of a purchase order (e.g., from 'processing' to 'shipped'). Authorized for logistics only.
+      operationId: updateOrderStatus
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  $ref: '#/components/schemas/Order/properties/status'
+                trackingNumber:
+                  type: string
+                  description: The shipping tracking number.
+      responses:
+        '200':
+          description: Order status successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/400Error'
+        '403':
+          $ref: '#/components/responses/403Error'
+        '404':
+          $ref: '#/components/responses/404Error'
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /customers:
+    get:
+      tags:
+        - Customers
+      summary: Get customer list
+      description: Retrieves a paginated list of all Dunder Mifflin customers.
+      operationId: getCustomers
+      parameters:
+        - $ref: '#/components/parameters/limitParam'
+        - $ref: '#/components/parameters/offsetParam'
+      responses:
+        '200':
+          description: Customer list successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerList'
+        '500':
+          $ref: '#/components/responses/500Error'
+    post:
+      tags:
+        - Customers
+      summary: Create a new customer
+      description: Adds a new customer to the Dunder Mifflin database.
+      operationId: createCustomer
+      requestBody:
+        description: Data for the new customer.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewCustomer'
+      responses:
+        '201':
+          description: Customer successfully created.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the newly created customer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/400Error'
+        '409':
+          description: Conflict. A customer with this email already exists.
+        '500':
+          $ref: '#/components/responses/500Error'
+
+  /branches:
+    get:
+      tags:
+        - Branches
+      summary: Get Dunder Mifflin branches
+      description: Retrieves a list of all Dunder Mifflin branches, including their regional manager.
+      operationId: getBranches
+      responses:
+        '200':
+          description: Branch list successfully retrieved.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Branch'
+        '500':
+          $ref: '#/components/responses/500Error'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key for authenticating requests. Contact the IT Dept (ext. 123) to obtain one.
+
+  parameters:
+    limitParam:
+      in: query
+      name: limit
+      schema:
+        type: integer
+        default: 100
+        maximum: 1000
+      description: The maximum number of items to return.
+    offsetParam:
+      in: query
+      name: offset
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+      description: The number of items to skip before starting to collect the result set.
+
+  responses:
+    400Error:
+      description: Bad Request. The request was invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    401Error:
+      description: Unauthorized. API key is missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    403Error:
+      description: Forbidden. The API key does not have permission to perform this action.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    404Error:
+      description: Not Found. The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    500Error:
+      description: Internal Server Error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        errorCode:
+          type: string
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          example: "The input data failed validation."
+        details:
+          type: array
+          items:
+            type: string
+          example: ["Field 'email' is not a valid email address."]
+
+    InventoryList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventoryItem'
+        total:
+          type: integer
+          description: The total number of inventory items matching the query.
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    InventoryItem:
+      type: object
+      properties:
+        product:
+          $ref: '#/components/schemas/PaperProduct'
+        quantityInStock:
+          type: integer
+          description: Number of boxes in stock.
+          minimum: 0
+        unit:
+          type: string
+          description: Fixed unit of measurement.
+          default: "box of 5000 units"
+          readOnly: true
+        branch:
+          $ref: '#/components/schemas/Branch'
+
+    CatalogList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Catalog'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    Catalog:
+      type: object
+      properties:
+        catalogId:
+          type: string
+          format: uuid
+          description: Unique ID for the catalog.
+        name:
+          type: string
+          description: Name of the catalog (e.g., "Summer Catalog").
+        description:
+          type: string
+          description: Description of the catalog.
+        products:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaperProduct'
+
+    NewProduct:
+      type: object
+      required:
+        - name
+        - pricePerBox
+      properties:
+        name:
+          type: string
+          description: Name of the new paper product.
+          example: "Ultra White Bond Paper"
+        description:
+          type: string
+          description: Detailed description of the product.
+        pricePerBox:
+          type: number
+          format: double
+          description: Price per box of 5000 units.
+          minimum: 0
+          example: 49.99
+        paperWeight:
+          type: string
+          description: Weight of the paper (e.g., "20 lb").
+        color:
+          type: string
+          description: Color of the paper.
+          example: "White"
+
+    PaperProduct:
+      allOf:
+        - $ref: '#/components/schemas/NewProduct'
+        - type: object
+          properties:
+            productId:
+              type: string
+              format: uuid
+              description: Unique ID for the product.
+              readOnly: true
+
+    NewOrder:
+      type: object
+      required:
+        - customerId
+        - items
+        - shippingAddress
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: ID of the customer placing the order.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        shippingAddress:
+          type: string
+          description: Full shipping address.
+
+    Order:
+      allOf:
+        - $ref: '#/components/schemas/NewOrder'
+        - type: object
+          properties:
+            orderId:
+              type: string
+              format: uuid
+              description: Unique ID for the purchase order.
+              readOnly: true
+            status:
+              type: string
+              description: Current status of the order.
+              enum: [created, processing, shipped, delivered, canceled]
+              default: "created"
+            orderDate:
+              type: string
+              format: date-time
+              description: Date and time the order was created.
+              readOnly: true
+            totalAmount:
+              type: number
+              format: double
+              description: Total amount of the order.
+              readOnly: true
+
+    OrderItem:
+      type: object
+      required:
+        - productId
+        - quantity
+      properties:
+        productId:
+          type: string
+          format: uuid
+          description: ID of the product.
+        quantity:
+          type: integer
+          description: Number of boxes ordered (each contains 5000 units).
+          minimum: 1
+
+    CustomerList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    NewCustomer:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          description: Name of the customer or company.
+        contactPerson:
+          type: string
+          description: Main contact person.
+        email:
+          type: string
+          format: email
+          description: Contact email address.
+        phone:
+          type: string
+          description: Phone number.
+        address:
+          type: string
+          description: Physical address of the customer.
+
+    Customer:
+      allOf:
+        - $ref: '#/components/schemas/NewCustomer'
+        - type: object
+          properties:
+            customerId:
+              type: string
+              format: uuid
+              description: Unique ID for the customer.
+              readOnly: true
+
+    Branch:
+      type: object
+      properties:
+        branchId:
+          type: string
+          format: uuid
+          description: Unique ID for the branch.
+        name:
+          type: string
+          description: Name of the branch.
+          example: "Scranton Branch"
+        manager:
+          type: string
+          description: Manager of the branch.
+          example: "Michael Scott"
