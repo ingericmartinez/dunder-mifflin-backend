@@ -4,7 +4,6 @@ import com.dundermifflin.api.domain.Catalog;
 import com.dundermifflin.api.domain.PaperProduct;
 import com.dundermifflin.api.dto.CatalogDto;
 import com.dundermifflin.api.dto.PaperProductDto;
-import com.dundermifflin.api.mapper.PaperProductMapper;
 import com.dundermifflin.api.repository.CatalogRepository;
 import com.dundermifflin.api.repository.PaperProductRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -24,12 +23,10 @@ public class CatalogService {
 
     private final CatalogRepository catalogRepository;
     private final PaperProductRepository productRepository;
-    private final PaperProductMapper productMapper;
 
-    public CatalogService(CatalogRepository catalogRepository, PaperProductRepository productRepository, PaperProductMapper productMapper) {
+    public CatalogService(CatalogRepository catalogRepository, PaperProductRepository productRepository) {
         this.catalogRepository = catalogRepository;
         this.productRepository = productRepository;
-        this.productMapper = productMapper;
     }
 
     public Page<Catalog> list(Pageable pageable) {
@@ -39,11 +36,7 @@ public class CatalogService {
     public CatalogDto getById(String catalogId) {
         Catalog c = catalogRepository.findById(catalogId)
                 .orElseThrow(() -> new EntityNotFoundException("Catalog not found: " + catalogId));
-        CatalogDto dto = new CatalogDto();
-        dto.setId(c.getId());
-        dto.setName(c.getName());
-        dto.setDescription(c.getDescription());
-        return dto;
+        return toDto(c);
     }
 
     public Page<PaperProductDto> listProducts(String catalogId, Pageable pageable) {
@@ -51,7 +44,7 @@ public class CatalogService {
                 .orElseThrow(() -> new EntityNotFoundException("Catalog not found: " + catalogId));
         List<PaperProductDto> all = new ArrayList<>();
         for (PaperProduct p : catalog.getProducts()) {
-            all.add(productMapper.toDto(p));
+            all.add(toProductDto(p));
         }
         int start = Math.toIntExact((long) pageable.getPageNumber() * pageable.getPageSize());
         int end = Math.min(start + pageable.getPageSize(), all.size());
@@ -69,14 +62,18 @@ public class CatalogService {
             throw new IllegalArgumentException("Product name already exists in catalog");
         }
 
-        PaperProduct entity = productMapper.toEntity(newProduct);
-        if (entity.getId() == null || entity.getId().isBlank()) {
-            entity.setId(UUID.randomUUID().toString());
-        }
+        PaperProduct entity = new PaperProduct();
+        entity.setId(UUID.randomUUID().toString());
+        entity.setName(newProduct.getName());
+        entity.setDescription(newProduct.getDescription());
+        entity.setPricePerBox(newProduct.getPricePerBox());
+        entity.setPaperWeight(newProduct.getPaperWeight());
+        entity.setColor(newProduct.getColor());
+
         PaperProduct saved = productRepository.save(entity);
         catalog.getProducts().add(saved);
         catalogRepository.save(catalog);
-        return productMapper.toDto(saved);
+        return toProductDto(saved);
     }
 
     public void removeProduct(String catalogId, String productId) {
@@ -89,5 +86,24 @@ public class CatalogService {
             throw new EntityNotFoundException("Product not associated with catalog");
         }
         catalogRepository.save(catalog);
+    }
+
+    private CatalogDto toDto(Catalog c) {
+        CatalogDto dto = new CatalogDto();
+        dto.setId(c.getId());
+        dto.setName(c.getName());
+        dto.setDescription(c.getDescription());
+        return dto;
+    }
+
+    private PaperProductDto toProductDto(PaperProduct p) {
+        PaperProductDto dto = new PaperProductDto();
+        dto.setId(p.getId());
+        dto.setName(p.getName());
+        dto.setDescription(p.getDescription());
+        dto.setPricePerBox(p.getPricePerBox());
+        dto.setPaperWeight(p.getPaperWeight());
+        dto.setColor(p.getColor());
+        return dto;
     }
 }
